@@ -1,27 +1,30 @@
 package broker.network;
 
+import broker.payloads.ProducerMessage;
+import broker.payloads.ConsumerMessage;
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.Gson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ConnectionHandler {
+    private static final Logger logger = LoggerFactory.getLogger(ConnectionHandler.class);
 
     private static final int PORT = 8080;
-
-    private static final ArrayList<String> data = new ArrayList<>();
-
-    private static int counter = 0;
 
     public static void main(String[] args) {
 
         try (ServerSocket server = new ServerSocket(PORT)) {
 
-            System.out.println("Broker started on port " + PORT);
+            logger.info("Broker started on port " + PORT);
 
             while (true) {
                 Socket client = server.accept();
 
-                System.out.println("Client connected: " + client.getInetAddress().getHostAddress());
+                logger.info("Client connected");
 
                 Thread thread = new Thread(() -> handleClient(client));
 
@@ -36,46 +39,34 @@ public class ConnectionHandler {
     private static void handleClient(Socket client) {
         try (client) {
             BufferedReader input = new BufferedReader(new InputStreamReader(client.getInputStream()));
-
             BufferedWriter output = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
 
-            String message = input.readLine();
+            String line = input.readLine();
 
-            if (message == null) {
+            Gson gson = new Gson();
+            JsonObject jsonMessage = JsonParser.parseString(line).getAsJsonObject();
+
+            String action = jsonMessage.get("action").toString();
+
+            if (action == null || (!action.equals("WRITE") && !action.equals("READ"))) {
+                send(output, "Unknown command: " + action);
                 return;
             }
 
-            System.out.println("Message received: " + message);
+            logger.info("Message received");
 
-            if (message.equals("INPUT")) {
-                String item;
+            if (action.equals("WRITE")) {
+                ProducerMessage message = gson.fromJson(jsonMessage, ProducerMessage.class);
 
-                synchronized (data) {
-                    counter++;
-                    item = "DATA - " + counter;
-                    data.add(item);
-                }
+                TopicPersistence.write(message);
 
-                send(output,"Message received: " + counter);
-            }
+                send(output,"Message received");
+            } else {
+                ConsumerMessage message = gson.fromJson(jsonMessage, ConsumerMessage.class);
 
-            else if (message.equals("OUTPUT")) {
-                String last;
+                String nextMessage = TopicPersistence.read(message);
 
-                synchronized (data) {
-                    if (data.isEmpty()) {
-                        send(output, "Queue empty");
-                        return;
-                    }
-
-                    last = data.removeLast();
-                }
-
-                send(output, "Message consumed: " + last);
-            }
-
-            else {
-                send(output, "Unknown command: " + message);
+                send(output, nextMessage);
             }
 
         } catch (IOException e) {

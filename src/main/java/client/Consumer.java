@@ -28,9 +28,7 @@ public class Consumer {
     }
 
     private static void send(SocketChannel channel, String message) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap(
-                (message + "\n").getBytes(StandardCharsets.UTF_8)
-        );
+        ByteBuffer buffer = ByteBuffer.wrap((message + "\n").getBytes(StandardCharsets.UTF_8));
 
         while (buffer.hasRemaining()) {
             channel.write(buffer);
