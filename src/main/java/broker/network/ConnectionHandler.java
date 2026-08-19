@@ -2,6 +2,7 @@ package broker.network;
 
 import broker.payloads.ProducerMessage;
 import broker.payloads.ConsumerMessage;
+import broker.persistence.TopicPersistence;
 import java.io.*;
 import java.net.*;
 import com.google.gson.JsonObject;
@@ -37,6 +38,7 @@ public class ConnectionHandler {
     }
 
     private static void handleClient(Socket client) {
+        // TODO: add 'create' for possibilities
         try (client) {
             BufferedReader input = new BufferedReader(new InputStreamReader(client.getInputStream()));
             BufferedWriter output = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
@@ -44,9 +46,9 @@ public class ConnectionHandler {
             String line = input.readLine();
 
             Gson gson = new Gson();
-            JsonObject jsonMessage = JsonParser.parseString(line).getAsJsonObject();
+            JsonObject jsonPayload = JsonParser.parseString(line).getAsJsonObject();
 
-            String action = jsonMessage.get("action").toString();
+            String action = jsonPayload.get("action").toString();
 
             if (action == null || (!action.equals("WRITE") && !action.equals("READ"))) {
                 send(output, "Unknown command: " + action);
@@ -56,15 +58,15 @@ public class ConnectionHandler {
             logger.info("Message received");
 
             if (action.equals("WRITE")) {
-                ProducerMessage message = gson.fromJson(jsonMessage, ProducerMessage.class);
+                ProducerMessage payload = gson.fromJson(jsonPayload, ProducerMessage.class);
 
-                TopicPersistence.write(message);
+                TopicPersistence.write(payload);
 
                 send(output,"Message received");
             } else {
-                ConsumerMessage message = gson.fromJson(jsonMessage, ConsumerMessage.class);
+                ConsumerMessage payload = gson.fromJson(jsonPayload, ConsumerMessage.class);
 
-                String nextMessage = TopicPersistence.read(message);
+                String nextMessage = TopicPersistence.read(payload);
 
                 send(output, nextMessage);
             }
