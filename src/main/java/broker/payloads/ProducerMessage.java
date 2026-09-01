@@ -3,10 +3,10 @@ package broker.payloads;
 import java.nio.charset.StandardCharsets;
 
 public class ProducerMessage {
-    public String action;
-    public String topic;
-    public String payload;
-    public String memberId;
+    private final String action;
+    private final String topic;
+    private final String payload;
+    private final String memberId;
 
     ProducerMessage(String action, String topic, String payload, String memberId) {
         this.action = action;
