@@ -1,51 +1,23 @@
 package client;
 
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 
 public class Producer {
 
     private static final String HOST = "localhost";
     private static final int PORT = 8080;
+    private static final String TOPIC = "demo";
 
-    public static void main(String[] args) {
-        try (SocketChannel client = SocketChannel.open(new InetSocketAddress(HOST, PORT))) {
+    public static void main(String[] args) throws IOException {
+        try (BrokerClient client = new BrokerClient(HOST, PORT)) {
+            System.out.println("CREATE -> " + client.create(TOPIC));
 
-            System.out.println("Producer connected to broker.");
-
-            send(client, "INPUT");
-
-            String response = listen(client);
-
-            System.out.println("Broker response: " + response);
-
-        } catch (IOException e) {
-            System.out.println("Error: " + e.getMessage());
+            for (int i = 1; i <= 5; i++) {
+                JsonObject ack = client.write(TOPIC, "hello #" + i);
+                System.out.println("WRITE  -> " + ack);
+            }
         }
-    }
-
-    private static void send(SocketChannel channel, String message) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap((message + "\n").getBytes(StandardCharsets.UTF_8));
-
-        while (buffer.hasRemaining()) {
-            channel.write(buffer);
-        }
-    }
-
-    private static String listen(SocketChannel channel) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-        int readBytes = channel.read(buffer);
-
-        if (readBytes == -1) {
-            return null;
-        }
-
-        buffer.flip();
-
-        return StandardCharsets.UTF_8.decode(buffer).toString().trim();
     }
 }

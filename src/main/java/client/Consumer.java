@@ -1,51 +1,39 @@
 package client;
 
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
 
 public class Consumer {
 
     private static final String HOST = "localhost";
     private static final int PORT = 8080;
+    private static final String TOPIC = "demo";
 
-    public static void main(String[] args) {
-        try (SocketChannel client = SocketChannel.open(new InetSocketAddress(HOST, PORT))) {
+    public static void main(String[] args) throws IOException {
+        long offset = args.length > 0 ? Long.parseLong(args[0]) : 0;
 
-            System.out.println("Consumer connected to broker.");
+        try (BrokerClient client = new BrokerClient(HOST, PORT)) {
+            while (true) {
+                JsonObject response = client.read(TOPIC, offset);
 
-            send(client, "OUTPUT");
+                if (!"OK".equals(string(response, "status"))) {
+                    System.out.println("READ -> " + response);
+                    break;
+                }
+                if (response.has("endOfLog") && response.get("endOfLog").getAsBoolean()) {
+                    System.out.println("Reached end of log at offset " + offset);
+                    break;
+                }
 
-            String response = listen(client);
-
-            System.out.println("Broker's response: " + response);
-
-        } catch (IOException e) {
-            System.out.println("Error: " + e.getMessage());
+                System.out.println("offset " + response.get("offset").getAsLong()
+                        + ": " + string(response, "message"));
+                offset = response.get("nextOffset").getAsLong();
+            }
         }
     }
 
-    private static void send(SocketChannel channel, String message) throws IOException {
-        ByteBuffer buffer = ByteBuffer.wrap((message + "\n").getBytes(StandardCharsets.UTF_8));
-
-        while (buffer.hasRemaining()) {
-            channel.write(buffer);
-        }
-    }
-
-    private static String listen(SocketChannel channel) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-        int readBytes = channel.read(buffer);
-
-        if (readBytes == -1) {
-            return null;
-        }
-
-        buffer.flip();
-
-        return StandardCharsets.UTF_8 .decode(buffer).toString().trim();
+    private static String string(JsonObject obj, String key) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : null;
     }
 }
